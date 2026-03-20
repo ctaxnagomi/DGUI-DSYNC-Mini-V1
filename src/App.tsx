@@ -98,11 +98,9 @@ export default function App() {
       {/* Header */}
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-12">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 glass flex items-center justify-center text-yellow-400">
-            <Sparkles className="w-6 h-6" />
-          </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">DGUI DSYNC-Mini <span className="text-yellow-400">V1</span></h1>
+            <p className="text-xs font-medium text-yellow-400/80 uppercase tracking-widest mb-1">by DeckerGUI Agentic Ecosystem</p>
             <p className="text-sm text-white/40">Agentic Presentation Architect</p>
           </div>
         </div>
