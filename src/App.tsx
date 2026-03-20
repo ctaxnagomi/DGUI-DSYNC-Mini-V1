@@ -19,16 +19,24 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, VISUAL_THEMES, Theme, PresentationData } from './lib/utils';
-import { analyzeContent, analyzeImageConfig } from './lib/gemini';
+import { analyzeContent, analyzeImageConfig, generateImage } from './lib/gemini';
 import { ThemeSelector } from './ThemeSelector';
 import { VocalistAgent, VoiceSettings } from './VoiceRecorder';
 import { SlidePreview } from './SlidePreview';
-import { exportToPptx, exportToPdf, exportToDocx } from './lib/export';
+import { exportToPptx, exportToPdf, exportToDocx, exportToMp4 } from './lib/export';
 
 export default function App() {
   const [url, setUrl] = useState('');
+  const [additionalContext, setAdditionalContext] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isVisualArchitecting, setIsVisualArchitecting] = useState(false);
+  const [isGeneratingImages, setIsGeneratingImages] = useState(false);
+  const [imageSettings, setImageSettings] = useState({
+    aspectRatio: '16:9' as '1:1' | '3:4' | '4:3' | '9:16' | '16:9',
+    imageSize: '1K' as '1K' | '2K' | '4K'
+  });
+  const [isExportingMp4, setIsExportingMp4] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
   const [presentation, setPresentation] = useState<PresentationData | null>(null);
   const [selectedTheme, setSelectedTheme] = useState<Theme>(VISUAL_THEMES[0]);
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -50,7 +58,7 @@ export default function App() {
     setIsAnalyzing(true);
     setError(null);
     try {
-      const data = await analyzeContent(url, settings, engine);
+      const data = await analyzeContent(url, settings, engine, additionalContext);
       setPresentation(data);
       setCurrentSlide(0);
     } catch (err) {
@@ -92,6 +100,55 @@ export default function App() {
       }
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleExportMp4 = async () => {
+    if (!presentation) return;
+    setIsExportingMp4(true);
+    setExportProgress(0);
+    setError(null);
+    try {
+      await exportToMp4(presentation, selectedTheme, voiceSettings, (progress) => {
+        setExportProgress(progress);
+      });
+    } catch (err) {
+      console.error('MP4 Export Error:', err);
+      setError('Failed to generate MP4 narration. Please try again.');
+    } finally {
+      setIsExportingMp4(false);
+      setExportProgress(0);
+    }
+  };
+
+  const handleGenerateVisuals = async () => {
+    if (!presentation) return;
+    setIsGeneratingImages(true);
+    setError(null);
+    try {
+      const updatedSlides = await Promise.all(
+        presentation.slides.map(async (slide) => {
+          if (slide.imagePrompt && !slide.imageUrl) {
+            try {
+              const imageUrl = await generateImage(
+                slide.imagePrompt,
+                imageSettings.aspectRatio,
+                imageSettings.imageSize
+              );
+              return { ...slide, imageUrl };
+            } catch (error) {
+              console.error(`Failed to generate image for slide: ${slide.title}`, error);
+              return slide;
+            }
+          }
+          return slide;
+        })
+      );
+      setPresentation({ ...presentation, slides: updatedSlides });
+    } catch (err) {
+      setError('Failed to generate visuals. Please check your API key and try again.');
+    } finally {
+      setIsGeneratingImages(false);
+    }
   };
 
   return (
@@ -178,13 +235,27 @@ export default function App() {
                   placeholder="Paste YouTube or Web URL..."
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400/50 transition-all"
                 />
+                <div className="space-y-2 mt-4">
+                  <label className="text-[10px] text-white/30 ml-1 flex items-center gap-1">
+                    <FileText className="w-2 h-2" /> Additional Context (Optional)
+                  </label>
+                  <textarea 
+                    value={additionalContext}
+                    onChange={(e) => setAdditionalContext(e.target.value)}
+                    placeholder="Describe the content to ensure accuracy (e.g., 'This video is a cooking tutorial for traditional Rendang...')"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs focus:outline-none focus:ring-2 focus:ring-yellow-400/50 transition-all min-h-[80px] resize-none"
+                  />
+                  <p className="text-[9px] text-white/20 ml-1 italic">
+                    * Providing context helps the AI architect more accurate slides for video content.
+                  </p>
+                </div>
                 <button 
                   onClick={handleAnalyze}
                   disabled={isAnalyzing || !url}
-                  className="absolute right-2 top-2 bottom-2 px-4 bg-yellow-400 text-black rounded-lg text-xs font-bold hover:bg-yellow-300 disabled:opacity-50 transition-all flex items-center gap-2"
+                  className="w-full mt-3 py-3 bg-yellow-400 text-black rounded-xl text-xs font-bold hover:bg-yellow-300 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
                 >
-                  {isAnalyzing ? <Loader2 className="w-3 h-3 animate-spin" /> : <ChevronRight className="w-4 h-4" />}
-                  GENERATE
+                  {isAnalyzing ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                  GENERATE PRESENTATION
                 </button>
               </div>
               {isVisualArchitecting && (
@@ -261,6 +332,73 @@ export default function App() {
           {presentation && (
             <section className="glass p-6 space-y-4">
               <label className="text-xs font-medium text-white/50 uppercase tracking-widest flex items-center gap-2">
+                <ImageIcon className="w-3 h-3 text-yellow-400" /> Visual Architect
+              </label>
+              
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <span className="text-[10px] text-white/30 ml-1">Aspect Ratio</span>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['1:1', '4:3', '16:9'] as const).map((ratio) => (
+                      <button
+                        key={ratio}
+                        onClick={() => setImageSettings(prev => ({ ...prev, aspectRatio: ratio }))}
+                        className={cn(
+                          "px-2 py-1 text-[10px] rounded border transition-all",
+                          imageSettings.aspectRatio === ratio 
+                            ? "bg-yellow-400/20 border-yellow-400 text-yellow-400" 
+                            : "border-white/10 hover:border-white/30 text-white/60"
+                        )}
+                      >
+                        {ratio}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-[10px] text-white/30 ml-1">Quality</span>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['1K', '2K', '4K'] as const).map((size) => (
+                      <button
+                        key={size}
+                        onClick={() => setImageSettings(prev => ({ ...prev, imageSize: size }))}
+                        className={cn(
+                          "px-2 py-1 text-[10px] rounded border transition-all",
+                          imageSettings.imageSize === size 
+                            ? "bg-yellow-400/20 border-yellow-400 text-yellow-400" 
+                            : "border-white/10 hover:border-white/30 text-white/60"
+                        )}
+                      >
+                        {size}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleGenerateVisuals}
+                  disabled={isGeneratingImages}
+                  className="w-full py-2 rounded-lg bg-yellow-400 text-black text-xs font-bold hover:bg-yellow-300 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                >
+                  {isGeneratingImages ? (
+                    <>
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      ARCHITECTING...
+                    </>
+                  ) : (
+                    <>
+                      GENERATE VISUALS
+                    </>
+                  )}
+                </button>
+              </div>
+            </section>
+          )}
+
+          {presentation && (
+            <section className="glass p-6 space-y-4">
+              <label className="text-xs font-medium text-white/50 uppercase tracking-widest flex items-center gap-2">
                 <Download className="w-3 h-3" /> Export Engine
               </label>
               <div className="grid grid-cols-2 gap-2">
@@ -282,11 +420,28 @@ export default function App() {
                 >
                   <FileDown className="w-3 h-3 text-blue-400" /> DOCX
                 </button>
-                <button className="flex flex-col items-start gap-1 px-3 py-2 glass-card hover:bg-white/10 text-[10px] font-bold opacity-70 group relative overflow-hidden">
+                <button 
+                  onClick={handleExportMp4}
+                  disabled={isExportingMp4}
+                  className="flex flex-col items-start gap-1 px-3 py-2 glass-card hover:bg-white/10 text-[10px] font-bold opacity-70 group relative overflow-hidden disabled:opacity-50"
+                >
                   <div className="flex items-center gap-2">
-                    <Video className="w-3 h-3 text-purple-400" /> MP4 NARRATION
+                    {isExportingMp4 ? (
+                      <Loader2 className="w-3 h-3 animate-spin text-purple-400" />
+                    ) : (
+                      <Video className="w-3 h-3 text-purple-400" />
+                    )}
+                    {isExportingMp4 ? `EXPORTING ${Math.round(exportProgress)}%` : 'MP4 NARRATION'}
                   </div>
-                  <span className="text-[8px] text-white/30 font-normal">Powered by Vocalist Agent</span>
+                  <span className="text-[8px] text-white/30 font-normal">
+                    {isExportingMp4 ? 'Synthesizing AI Voice...' : 'Powered by Vocalist Agent'}
+                  </span>
+                  {isExportingMp4 && (
+                    <div 
+                      className="absolute bottom-0 left-0 h-0.5 bg-purple-500 transition-all duration-300" 
+                      style={{ width: `${exportProgress}%` }}
+                    />
+                  )}
                   <div className="absolute inset-0 bg-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </button>
               </div>

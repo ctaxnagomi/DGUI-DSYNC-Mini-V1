@@ -22,6 +22,7 @@ export const VocalistAgent: React.FC<VocalistAgentProps> = ({ onVoiceSettingsCha
   const [duration, setDuration] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [isCloned, setIsCloned] = useState(false);
+  const [cloningProgress, setCloningProgress] = useState(0);
   const [isPreviewing, setIsPreviewing] = useState(false);
   
   const mediaRecorder = useRef<MediaRecorder | null>(null);
@@ -73,8 +74,28 @@ export const VocalistAgent: React.FC<VocalistAgentProps> = ({ onVoiceSettingsCha
   const handleClone = async () => {
     if (!audioBlob) return;
     setIsCloning(true);
-    // Simulate ElevenLabs-style processing
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    setCloningProgress(0);
+
+    const duration = 3000;
+    const intervalTime = 50;
+    const steps = duration / intervalTime;
+    const increment = 100 / steps;
+
+    const interval = setInterval(() => {
+      setCloningProgress((prev) => {
+        const next = prev + increment;
+        if (next >= 100) {
+          clearInterval(interval);
+          return 100;
+        }
+        return next;
+      });
+    }, intervalTime);
+
+    await new Promise(resolve => setTimeout(resolve, duration));
+    
+    clearInterval(interval);
+    setCloningProgress(100);
     setIsCloning(false);
     setIsCloned(true);
   };
@@ -172,14 +193,14 @@ export const VocalistAgent: React.FC<VocalistAgentProps> = ({ onVoiceSettingsCha
                   <span className="flex items-center gap-2">
                     <Loader2 className="w-3 h-3 animate-spin" /> Analyzing Voice Patterns...
                   </span>
-                  <span>75%</span>
+                  <span>{Math.round(cloningProgress)}%</span>
                 </div>
                 <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
                   <motion.div 
                     className="h-full bg-yellow-400"
                     initial={{ width: "0%" }}
-                    animate={{ width: "75%" }}
-                    transition={{ duration: 2 }}
+                    animate={{ width: `${cloningProgress}%` }}
+                    transition={{ type: "spring", bounce: 0, duration: 0.2 }}
                   />
                 </div>
               </div>

@@ -37,24 +37,43 @@ export const SlidePreview: React.FC<SlidePreviewProps> = ({ data, theme, current
             style={{ background: theme.accent, clipPath: 'polygon(100% 0, 20% 0, 100% 100%)' }}
           />
 
-          <h2 className="text-4xl font-bold mb-8 relative z-10" style={{ color: theme.accent }}>
-            {slide.title}
-          </h2>
+          <div className="flex gap-8 h-full relative z-10">
+            <div className="flex-1 flex flex-col">
+              <h2 className="text-4xl font-bold mb-8" style={{ color: theme.accent }}>
+                {slide.title}
+              </h2>
 
-          <ul className="space-y-4 relative z-10 flex-grow">
-            {slide.content.map((item, i) => (
-              <motion.li 
-                key={i}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1 }}
-                className="text-xl flex items-start gap-3"
+              <ul className="space-y-4 flex-grow">
+                {slide.content.map((item, i) => (
+                  <motion.li 
+                    key={i}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.1 }}
+                    className="text-xl flex items-start gap-3"
+                  >
+                    <span className="mt-2 w-2 h-2 rounded-full shrink-0" style={{ background: theme.accent }} />
+                    {item}
+                  </motion.li>
+                ))}
+              </ul>
+            </div>
+
+            {slide.imageUrl && (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="w-1/3 h-full rounded-xl overflow-hidden shadow-lg border border-white/10"
               >
-                <span className="mt-2 w-2 h-2 rounded-full shrink-0" style={{ background: theme.accent }} />
-                {item}
-              </motion.li>
-            ))}
-          </ul>
+                <img 
+                  src={slide.imageUrl} 
+                  alt={slide.title} 
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              </motion.div>
+            )}
+          </div>
 
           <div className="mt-auto flex justify-between items-end text-sm opacity-50">
             <span>{data.title}</span>
@@ -90,6 +109,19 @@ export const SlidePreview: React.FC<SlidePreviewProps> = ({ data, theme, current
           Next
         </button>
       </div>
+
+      {slide.speakerNotes && (
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass p-6 space-y-3"
+        >
+          <h4 className="text-[10px] font-bold text-yellow-400 uppercase tracking-widest">Speaker Notes</h4>
+          <p className="text-sm text-white/60 leading-relaxed italic">
+            "{slide.speakerNotes}"
+          </p>
+        </motion.div>
+      )}
     </div>
   );
 };
