@@ -21,7 +21,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn, VISUAL_THEMES, Theme, PresentationData } from './lib/utils';
 import { analyzeContent, analyzeImageConfig } from './lib/gemini';
 import { ThemeSelector } from './ThemeSelector';
-import { VoiceRecorder } from './VoiceRecorder';
+import { VocalistAgent, VoiceSettings } from './VoiceRecorder';
 import { SlidePreview } from './SlidePreview';
 import { exportToPptx, exportToPdf, exportToDocx } from './lib/export';
 
@@ -32,8 +32,9 @@ export default function App() {
   const [presentation, setPresentation] = useState<PresentationData | null>(null);
   const [selectedTheme, setSelectedTheme] = useState<Theme>(VISUAL_THEMES[0]);
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
+  const [voiceSettings, setVoiceSettings] = useState<VoiceSettings>({ model: 'male', isCloned: false, audioBlob: null });
   const [error, setError] = useState<string | null>(null);
+  const [engine, setEngine] = useState('Gemini 3.1');
   
   const [settings, setSettings] = useState({
     length: 'Medium (11-30 slides)',
@@ -49,7 +50,7 @@ export default function App() {
     setIsAnalyzing(true);
     setError(null);
     try {
-      const data = await analyzeContent(url, settings);
+      const data = await analyzeContent(url, settings, engine);
       setPresentation(data);
       setCurrentSlide(0);
     } catch (err) {
@@ -70,7 +71,7 @@ export default function App() {
     reader.onloadend = async () => {
       const base64 = reader.result as string;
       try {
-        const config = await analyzeImageConfig(base64);
+        const config = await analyzeImageConfig(base64, engine);
         if (config) {
           if (config.suggestedTheme) {
             const matchedTheme = VISUAL_THEMES.find(t => t.name.toLowerCase().includes(config.suggestedTheme.name.toLowerCase()));
@@ -109,8 +110,20 @@ export default function App() {
           <div className="px-4 py-2 glass-card text-xs font-mono text-white/60">
             STATUS: <span className="text-emerald-400">READY</span>
           </div>
-          <div className="px-4 py-2 glass-card text-xs font-mono text-white/60">
-            ENGINE: <span className="text-yellow-400">GEMINI-3.1</span>
+          <div className="relative group">
+            <select 
+              value={engine}
+              onChange={(e) => setEngine(e.target.value)}
+              className="appearance-none px-4 py-2 glass-card text-xs font-mono text-white/60 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-yellow-400/30 cursor-pointer pr-8"
+            >
+              <option value="Gemini 3.1" className="bg-[#0a0a0a]">GEMINI-3.1</option>
+              <option value="Qwen" className="bg-[#0a0a0a]">QWEN-2.5</option>
+              <option value="Ollama" className="bg-[#0a0a0a]">OLLAMA-LOCAL</option>
+              <option value="Custom" className="bg-[#0a0a0a]">CUSTOM-MODEL</option>
+            </select>
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+              <ChevronRight className="w-3 h-3 text-yellow-400 rotate-90" />
+            </div>
           </div>
         </div>
       </header>
@@ -243,7 +256,7 @@ export default function App() {
             </div>
           </section>
 
-          <VoiceRecorder onRecordingComplete={setVoiceBlob} />
+          <VocalistAgent onVoiceSettingsChange={setVoiceSettings} />
 
           {presentation && (
             <section className="glass p-6 space-y-4">
@@ -269,8 +282,12 @@ export default function App() {
                 >
                   <FileDown className="w-3 h-3 text-blue-400" /> DOCX
                 </button>
-                <button className="flex items-center gap-2 px-3 py-2 glass-card hover:bg-white/10 text-[10px] font-bold opacity-50 cursor-not-allowed">
-                  <Video className="w-3 h-3 text-purple-400" /> MP4 (BETA)
+                <button className="flex flex-col items-start gap-1 px-3 py-2 glass-card hover:bg-white/10 text-[10px] font-bold opacity-70 group relative overflow-hidden">
+                  <div className="flex items-center gap-2">
+                    <Video className="w-3 h-3 text-purple-400" /> MP4 NARRATION
+                  </div>
+                  <span className="text-[8px] text-white/30 font-normal">Powered by Vocalist Agent</span>
+                  <div className="absolute inset-0 bg-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </button>
               </div>
             </section>

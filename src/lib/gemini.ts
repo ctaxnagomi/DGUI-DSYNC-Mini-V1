@@ -5,10 +5,12 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
 export async function analyzeContent(
   url: string, 
-  settings: { length: string; density: string; tone: string; language: string }
+  settings: { length: string; density: string; tone: string; language: string },
+  engine: string
 ): Promise<PresentationData> {
   const prompt = `
     Analyze the following content from URL: ${url}
+    Using Engine: ${engine}
     Generate a presentation structure based on these settings:
     - Length: ${settings.length} (Target between 15 and 35 slides)
     - Density: ${settings.density}
@@ -20,6 +22,10 @@ export async function analyzeContent(
   `;
 
   try {
+    // For now, we use Gemini as the primary orchestrator for all engines
+    // In a production environment, we would switch between different SDKs here
+    // e.g., if (engine === 'Qwen') { ... }
+    
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: prompt,
@@ -55,14 +61,15 @@ export async function analyzeContent(
     
     return JSON.parse(text) as PresentationData;
   } catch (error) {
-    console.error("Gemini Analysis Error:", error);
+    console.error("Analysis Error:", error);
     throw new Error(error instanceof Error ? error.message : "Failed to analyze content. Please check the URL or try again.");
   }
 }
 
-export async function analyzeImageConfig(base64Image: string): Promise<any> {
+export async function analyzeImageConfig(base64Image: string, engine: string): Promise<any> {
   const prompt = `
     Analyze this image and extract key design details for a presentation application.
+    Using Engine: ${engine}
     Return a JSON object with:
     - suggestedTheme: { name, primaryColor, accentColor, font }
     - suggestedSettings: { tone, density }
