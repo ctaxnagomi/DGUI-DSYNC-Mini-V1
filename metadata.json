@@ -1,0 +1,5 @@
+{
+  "name": "DGUI DSYNC-Mini V1",
+  "description": "Autonomous video-to-slide workflow with voice cloning and multi-format export.",
+  "requestFramePermissions": ["microphone"]
+}
